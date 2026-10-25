@@ -1,0 +1,811 @@
+---
+title: "Stability Analysis in Ecology: Predicting the Impacts of Ecosystem Engineers"
+author: "Xuewen Geng"
+date: today
+format:
+  html:
+    toc: true
+    toc-location: left
+    toc-depth: 2
+    number-sections: true
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+---
+
+# Welcome {.unnumbered}
+
+Imagine you manage a part of a stream and its surrounding land, and a family of beavers moves in. Within a season, they build a dam across the channel. The dam slows the water and floods the land, so the flowing stream transforms into a pond @fig-beaver.
+
+![The same land before (a) and after (b) beavers build a dam. The dam converts flowing water into a pond and floods the surrounding land (From Law et al. (2017), Fig. 2, licensed under \[CC BY 4.0\])](figs/fig-beaver.png){#fig-beaver}
+
+As a manager, you would want to know what happens next: What will the stream look like in 10 years? In 20 years? Will it settle into one state, or keep changing? And if we remove beavers from the ecosystem, will the stream go back to the way it was?
+
+These are all questions about **stability**. In this module, we'll see what stability is in ecological systems, how ecologists use models to ask questions about stability, and how stability analysis helps us answer them, focusing on the system of **ecosystem engineers** (e.g. beavers!).
+
+## Learning objectives
+
+By the end of this module, you will be able to:
+
+1.  Explain the concept of stability in ecology using the ball-and-cup diagram.
+2.  Understand why ecologists use mathematical models to understand and predict how a system changes.
+3.  Be familiar with tools for stability analysis and their common usages.
+4.  Learn about ecosystem engineers and apply the above knowledge to predict the dynamics of ecosystem engineers in simple scenarios.
+
+## Time plan
+
+| Section | What you'll do | Time |
+|------------------------|------------------------|------------------------|
+| [1. The Concept of Stability](#sec-stability) | Learn about the concept of stability in ecology | ≈ 8 mins |
+| [2. Stability Analysis](#sec-1D) | Learn about stability analysis tools in 1D and 2D systems | ≈ 12 mins |
+| [3. Application: Ecosystem Engineers](#sec-2D) | Learn about the the concept of ecosystem engineers and review the stability of simple 2D and 3D ecosystem engineer models. | ≈ 10 mins |
+| Total |  | ≈ 30 mins |
+
+# The Concept of Stability {#sec-stability}
+
+## What is stability?
+
+Let's return to the beaver pond example: we can quantify the **state** of the system with a few variables of interest e.g. how much water the pond holds, and which species live there and in what numbers. When the beavers move into the system, they bring changes to the state by establishing their own population and also transforming streams into ponds, which can influence other biotic and abiotic factors.
+
+Now suppose we remove a few beavers from the system (@fig-beaver-concept ). Will the beaver population recover and maintain the beaver pond, or will the beaver population collapse, leaving the beaver pond revert back to a stream? How many individuals do we have to remove for the pond to be lost? And if we add back the same amount of beavers back, will the pond recover?
+
+![Conceptual diagram for the beaver pond thought experiment.](figs/fig-beaver-concept.png){#fig-beaver-concept}
+
+These are questions about **stability**. A system state is **stable** if, after a **small** disturbance, it returns to its previous state. Ecologists often picture this as a ball resting in a cup.
+
+## The ball-and-cup diagram: how to interpret stability in ecology
+
+### What is ball-and-cup diagram ?
+
+The ball-and-cup diagram visualize the stability of a system using the movement of a ball (@fig-ballcup ). The ball represents the state of the system and its movement shows the system change (e.g. whether the beaver pond exists and how big the beaver pond is). The curve represents the factors acting on the system (e.g. beaver births and deaths, dam building and maintenance). The ball always rolls downhill just like in real life, thus, the shape of the curve determines the dynamics of the system.
+
+```{r}
+#| label: fig-ballcup
+#| fig-cap: "A simple ball-and-cup diagram. A ball placed on the side of the cup  rolls downhill (arrow) and comes to rest at the bottom."
+#| fig-width: 5
+#| fig-height: 3.5
+ink <- "black"; ball_col <- "#c0504d"
+
+draw_land <- function(f, title = "", xlim = c(-1.8, 1.8), ylim = c(-1.15, 2)) {
+  x <- seq(xlim[1], xlim[2], length.out = 400)
+  plot(NA, xlim = xlim, ylim = ylim, asp = 1, axes = FALSE, xlab = "", ylab = "")
+  lines(x, f(x), lwd = 3, col = ink)
+  if (title != "") mtext(title, side = 3, adj = 0, font = 2)
+}
+
+# draw a ball resting on the curve at position xb
+ball <- function(f, xb, bg = ball_col, r = 0.12) {
+  slope <- (f(xb + 1e-4) - f(xb - 1e-4)) / 2e-4
+  th <- atan(slope)
+  symbols(xb - r * sin(th), f(xb) + r * cos(th), circles = r,
+          inches = FALSE, add = TRUE, bg = bg, fg = ink, lwd = 1.5)
+}
+
+# draw an arrow that follows the curve from x0 to x1
+curve_arrow <- function(f, x0, x1, off = 0.15) {
+  xs <- seq(x0, x1, length.out = 60)
+  slope <- (f(xs + 1e-4) - f(xs - 1e-4)) / 2e-4
+  th <- atan(slope)
+  ax <- xs - off * sin(th)
+  ay <- f(xs) + off * cos(th)
+  n <- length(xs)
+  lines(ax[-n], ay[-n], lwd = 2, col = ink)
+  arrows(ax[n - 1], ay[n - 1], ax[n], ay[n], length = 0.1, lwd = 2, col = ink)
+}
+
+simple_cup <- function(x) 0.6 * x^2 - 0.9
+
+par(mar = c(0.5, 0.5, 0.5, 0.5))
+draw_land(simple_cup)
+ball(simple_cup, -1.3)
+ball(simple_cup, 0)
+curve_arrow(simple_cup, -1.1, -0.3)
+```
+
+### How ball-and-cup diagram visualize stability ?
+
+Now let's revisit the beaver pond example and visualize that in the same way (@fig-ballcup-beaver). The position of the ball from left to right shows the state of the system. On the left, there are no beavers, and the system is a stream. On the right, there are many beavers, and the system is a beaver pond. The threshold might represent the sufficient amount of beavers that can sustain beaver population and the establishment of beaver pond.
+
+```{r}
+#| label: fig-ballcup-beaver
+#| fig-cap: "The ball-and-cup diagram for the beaver system. The landscape has two cups, a stream state and a pond state, separated by a threshold. Here, the ball rests in the pond state."
+#| fig-width: 6
+#| fig-height: 3.8
+V <- function(x, c = 0) x^4 / 4 - x^2 / 2 - c * x
+beaver <- function(x) 2 * V(x)
+
+par(mar = c(0.5, 0.5, 0.5, 0.5))
+draw_land(beaver, ylim = c(-1.3, 2.3))
+ball(beaver, 1)
+text(c(-1, 1), -0.85, c("Stream", "Pond"))
+text(0, 0.4, "Threshold")
+arrows(-0.8, -1.15, 0.8, -1.15, code = 3, length = 0.08)
+text(c(-1.45, 1.45), -1.15, c("No beavers", "Many beavers"), cex = 0.85)
+```
+
+Each part of the diagram has an ecological meaning.
+
+- **A push is a disturbance.** For example, removing a few beavers pushes the ball a little to the left.
+- **Wherever the ball rests is an equilibrium of the system.** The ball is not moving, which means the system stays at its current stage if no disturbances were introduced to the system. However, whether the equilibrium is a stable one is determined by the landscape.
+- **The bottom of a cup is a stable equilibrium.** If we push the ball a little, it rolls back. This matches the definition of stability (Recall previous definition that a system is stable only when it returns after a small disturbance).
+  - **This landscape has two cups.** One is the pond state, and the other is the stream state. These are called **alternative stable states**.
+  - **The hilltop between the cups is an unstable equilibrium.** A ball can rest on the hilltop, but any push, despite how small it is, moves the ball away to one of the two stable states. Thus, the hilltop is an **unstable** state.
+- There are also other stability properties shown in this graph that won't be discuss in details in this module but might be useful.
+  - e.g. The steepness of the cup shows how fast the ball returns. This can represent the ecological resilience of the system.
+
+### Where will the ball end up ?
+
+Now let's use the diagram to predict where the system ends up after a disturbance.
+
+A few things determine this: the size and direction of the disturbance, the initial condition of the system, and the acting factors of the system (@fig-scenarios):
+
+**The size and direction of the disturbance.** The size of the disturbance is represented by the strength of the push on the ball in the diagram. If we remove a few beavers, the ball gets pushed a little to the left and it will roll back to the bottom of the cup (beaver pond state) (A). If we remove many beavers, the ball crosses the hilltop into the other cup (stream state) and does not come back (B). The direction of the push also matter. In this case, if instead of removing, we add new beavers to the system, then no matter the amount of beavers we add in, the ball will roll back to its initial state (A and B).
+
+**The initial condition of the system.** The same landscape can lead to different outcomes (C). A ball that starts to the left of the threshold ends in the stream state. A ball that starts to the right ends in the pond state. Thus, if we release beavers into a stream, a small group may fail to create a pond, while a larger group succeeds. The set of starting points that end in the same cup is called the **basin of attraction** of that stable state.
+
+**The acting factors of the system.** This is what determines the curve shape of the diagram. So, for example, environmental conditions of the region or birth and death rates of the beaver population. So far, the landscape has stayed the same in our beaver pond example. However, this can change when there are changes on the acting factors. For example, the availability of trees in the region decreases, and this can lead to a shallower cup shape for the beaver pond state because there are less materials available for the beaver to create and maintain beaver pond. If the pond cup becomes shallow enough, it disappears. The ball then rolls into the stream state without any push regardless of its initial condition (D).
+
+```{r}
+#| label: fig-scenarios
+#| fig-cap: "Four scenarios for the beaver system. In each panel, the stream state is on the left and the pond state is on the right. Open circles show where the ball starts; filled circles show where it ends. (A) A small disturbance: the ball returns to the pond state. (B) A large disturbance: the ball crosses the threshold into the stream state. (C) Different starting points: balls on either side of the threshold end in different states. (D) Landscape change, and the pond cup disappears: the ball rolls into the stream state without any push."
+#| fig-width: 9
+#| fig-height: 6
+beaver_changed <- function(x) 2 * V(x, c = -0.5)
+yl <- c(-1.9, 2.3)
+
+par(mfrow = c(2, 2), mar = c(0.5, 0.5, 2, 0.5))
+
+# (A) small disturbance
+draw_land(beaver, title = "A. Small disturbance", ylim = yl)
+ball(beaver, 0.55); ball(beaver, 1, bg = "white");ball(beaver,1.5)
+curve_arrow(beaver, 0.85, 0.62); curve_arrow(beaver,1.17,1.45)
+
+# (B) large disturbance
+draw_land(beaver, title = "B. Large disturbance", ylim = yl)
+ball(beaver, 1, bg = "white"); ball(beaver, -1);ball(beaver,1.77)
+curve_arrow(beaver, 0.85, -0.85); curve_arrow(beaver,1.17,1.75)
+
+# (C) different starting points
+draw_land(beaver, title = "C. Different starting points", ylim = yl)
+ball(beaver, -0.3, bg = "white"); ball(beaver, 0.3, bg = "white")
+ball(beaver, -1); ball(beaver, 1)
+curve_arrow(beaver, -0.4, -0.85)
+curve_arrow(beaver, 0.4, 0.85)
+
+# (D) landscape change: the pond cup disappears
+draw_land(beaver_changed, title = "D. Landscape change", ylim = yl)
+ball(beaver_changed, 1, bg = "white"); ball(beaver_changed, -1.19)
+curve_arrow(beaver_changed, 0.85, -0.95)
+```
+
+Ecologists can use the ball-and-cup diagram to visualize and ask questions about dynamic properties of the system. For example:
+
+- **Regime shift.** A change from one state to another. In @fig-scenarios, both B and D end in a regime shift. B is a regime shift caused by a large disturbance to the system state, and D is a regime shift caused by changes in the drivers that reshape the landscape.
+- **Transient dynamics.** The behavior of a system before it settles into its long-term stable state. This captures what happens while the ball is moving in the diagram. Transients can be long or short depending on the steepness of the cup and the width between different equilibrium.
+- **Hysteresis.** The current state of a system depends on its history, not only on current conditions (@fig-hysteresis). Both systems start in the pond state with the same conditions (A, D). In the top row, conditions change, and the system shifts to the stream state (B). Conditions then return, but the system stays in the stream state (C). In the bottom row, conditions never change, and the system stays in the pond state (F). Thus, C and F have the same conditions but different states. Thus, even if we remove some beavers and then add them back later, it doesn't mean the system is guaranteed to restore back to its previous state.
+
+```{r}
+#| label: fig-hysteresis
+#| fig-cap: "Hysteresis. Columns show three points in time. Top row (A–C): conditions change and then return. Bottom row (D–F): conditions stay the same. Open circles show where the ball starts; filled circles show where it ends. Panels C and F have the same landscape, so current conditions are the same. However, the system is in different states, because the two systems have different histories."
+#| fig-width: 10
+#| fig-height: 6
+yl <- c(-1.9, 2.3)
+par(mfrow = c(2, 3), mar = c(0.5, 0.5, 2, 0.5), oma = c(0, 3, 0, 0))
+
+# top row: conditions change and return
+draw_land(beaver, title = "A. Start", ylim = yl)
+ball(beaver, 1)
+
+draw_land(beaver_changed, title = "B. Conditions change", ylim = yl)
+ball(beaver_changed, 1, bg = "white"); ball(beaver_changed, -1.19)
+curve_arrow(beaver_changed, 0.85, -0.95)
+
+draw_land(beaver, title = "C. Conditions return", ylim = yl)
+ball(beaver, -1)
+
+# bottom row: conditions stay the same
+draw_land(beaver, title = "D. Start", ylim = yl)
+ball(beaver, 1)
+
+draw_land(beaver, title = "E. No change", ylim = yl)
+ball(beaver, 1)
+
+draw_land(beaver, title = "F. No change", ylim = yl)
+ball(beaver, 1)
+
+mtext(c("Conditions change\nand return", "Conditions stay\nthe same"),
+      side = 2, outer = TRUE, at = c(0.75, 0.25), line = 0.5, cex = 0.85)
+```
+
+# Stability Analysis in 1D: logistic population growth {#sec-1D}
+
+**Stability analysis** finds the equilibria of a model and tests whether the system returns to each one after a small disturbance. In the ball-and-cup diagram, this means finding where the ball can rest, and predicting where it ends up after a push. In the rest of this module, we practise stability analysis on ecological models and show the results as ball-and-cup diagrams. To do that, we first need a model of the system.
+
+## A simple example: logistic growth
+
+Let's first look at the beaver population alone. A simple model of population growth is the logistic model:
+
+$$
+\frac{dN}{dt} = rN\left(1 - \frac{N}{K}\right)
+$$
+
+- $N$ is the number of beavers.
+- $dN/dt$ is the rate of change of the population.
+- $r$ is the growth rate of a small population.
+- $K$ is the carrying capacity: the largest population the stream can support.
+
+@fig-logistic A plots the beaver population over time. When the population is small, it grows quickly, and growth slows down as it approaches $K$. When the population is larger than $K$, it declines toward $K$. Thus, the population always moves toward $K$.
+
+@fig-logistic B shows the same model as a ball-and-cup diagram. The position of the ball represents the number of beavers. Each curve in A is a record of the ball's position over time. The landscape has one cup, at $K$. Balls that start at different positions all roll into this cup. Thus, $K$ is a stable equilibrium.
+
+```{r}
+#| label: fig-logistic
+#| fig-cap: "Logistic growth of a beaver population (r = 0.5, K = 20). (A) Number of beavers over time, starting from 2 and from 30 beavers. Both populations approach the carrying capacity K (dashed line). (B) The same model as a ball-and-cup diagram. Open circles show the two starting populations. Both balls roll into the cup at K (filled circle)."
+#| fig-width: 9
+#| fig-height: 3.8
+r <- 0.5; K <- 20
+logistic <- function(t, N0) K / (1 + (K - N0) / N0 * exp(-r * t))
+t <- seq(0, 20, by = 0.1)
+starts <- c(2, 30)
+
+# landscape for the logistic model, in units of N/K
+log_land <- function(n) 6 * (-n^2 / 2 + n^3 / 3)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 2, 1))
+
+# (A) population over time
+plot(NA, xlim = c(0, 20), ylim = c(0, 35), las = 1,
+     xlab = "Time", ylab = "Number of beavers")
+mtext("A", side = 3, adj = 0, font = 2)
+for (N0 in starts) lines(t, logistic(t, N0), lwd = 2)
+abline(h = K, lty = 2)
+text(19.5, K + 1.5, "K")
+
+# (B) ball-and-cup (horizontal axis in units of N/K)
+par(mar = c(1, 1, 2, 1))
+draw_land(log_land, xlim = c(-0.05, 1.75), ylim = c(-1.3, 1.5))
+mtext("B", side = 3, adj = 0, font = 2)
+ball(log_land, starts[1] / K, bg = "white", r = 0.07)
+ball(log_land, starts[2] / K, bg = "white", r = 0.07)
+ball(log_land, 1, r = 0.07)
+curve_arrow(log_land, 0.25, 0.8, off = 0.1)
+curve_arrow(log_land, 1.45, 1.2, off = 0.1)
+text(c(0, 1), log_land(c(0, 1)) - 0.25, c("0", "K"))
+```
+
+However, here, we found that $K$ is stable by simulating the model from different starting points. For more complex models, this quickly becomes impractical. Can we tell where the ball ends up directly from the equation?
+
+## The velocity of the ball: equilibrium, stability and linearization
+
+The answer is in the rate of change, $dN/dt$. The rate of change of population size at each N tells us the velocity of the ball at each position.
+
+Its sign gives the direction. - When $dN/dt > 0$, the population grows, and the ball moves to the right. - When $dN/dt < 0$, the population declines, and the ball moves to the left.
+
+Its size gives the speed. - A large $dN/dt$ means the ball moves quickly.
+
+@fig-velocity A plots $dN/dt$ against $N$, which is also the velocity curve of the ball. The arrows on the horizontal axis show which way the ball moves. This set of arrows is called a **phase line**. @fig-velocity B shows the same directions of movement on the ball-and-cup diagram.
+
+```{r}
+#| label: fig-velocity
+#| fig-cap: "Two views of the logistic model (r = 0.5, K = 20). (A) The velocity curve: the rate of change dN/dt against the number of beavers. Arrows show the direction the ball moves (the phase line). The filled circle is a stable equilibrium; the open circle is an unstable equilibrium. (B) The same model as a ball-and-cup diagram. The ball at K rests at the bottom of the cup. The ball at 0 is balanced on a hilltop."
+#| fig-width: 9
+#| fig-height: 3.8
+f_log <- function(N) r * N * (1 - N / K)
+N <- seq(0, 32, by = 0.1)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 2, 1))
+
+# (A) velocity curve and phase line
+plot(N, f_log(N), type = "l", lwd = 2, las = 1,
+     xlab = "Number of beavers, N", ylab = "Rate of change, dN/dt")
+mtext("A", side = 3, adj = 0, font = 2)
+abline(h = 0, col = "grey50")
+arrows(6, 0, 14, 0, length = 0.1, lwd = 2)
+arrows(31, 0, 23, 0, length = 0.1, lwd = 2)
+points(K, 0, pch = 19, cex = 1.6)
+points(0, 0, pch = 21, bg = "white", cex = 1.6, xpd = NA)
+text(K, 0, "K", pos = 3, offset = 0.8)
+
+# (B) landscape with the same directions
+par(mar = c(1, 1, 2, 1))
+draw_land(log_land, xlim = c(-0.15, 1.75), ylim = c(-1.3, 1.5))
+mtext("B", side = 3, adj = 0, font = 2)
+ball(log_land, 1, r = 0.07)
+ball(log_land, 0, bg = "white", r = 0.07)
+curve_arrow(log_land, 0.5, 0.8, off = 0.1)
+curve_arrow(log_land, 1.4, 1.2, off = 0.1)
+text(c(0, 1), log_land(c(0, 1)) - 0.25, c("0", "K"))
+```
+
+**Where is the equilibrium?**
+
+The ball is at rest when its velocity is zero. Thus, an **equilibrium** is a state where $dN/dt = 0$. The logistic model has two equilibria: $N = 0$ and $N = K$. On the $dN/dt$ figure, they are the points where the curve crosses the horizontal axis (@fig-velocity A).
+
+**Is the equilibrium stable?**
+
+To find out, like in @sec-stability, we nudge the ball and see whether it returns to its previous stage. Similarly, for the rate of change figure, we reads the velocity of the ball near the equilibrium.
+
+- **Near** $K$. Slightly below $K$, $dN/dt > 0$, so the ball moves right, back to $K$. Slightly above $K$, $dN/dt < 0$, so the ball moves left, back to $K$. Thus, $K$ is stable. It is the bottom of the cup in the ball-and-cup diagram.
+- **Near 0.** If a few beavers arrive, $dN/dt > 0$, so the ball moves away from 0. Thus, $N = 0$ is unstable. It is the hilltop in the ball-and-cup diagram.
+
+This information can be summarized in one number: how quickly the velocity changes as the system moves away from the equilibrium. This number is the slope of the velocity curve at the equilibrium. In the ball-and-cup diagram, it describes how steep the walls of the cup are near the bottom.
+
+Close to the equilibrium, the velocity curve looks like a straight line (@fig-linear A). Approximating the curve by this straight line is called **linearization**. In the ball-and-cup diagram, this is like describing the bottom of the cup by a simple bowl shape (@fig-linear B). Thus, the slope describes how the system behaves near each equilibrium.
+
+- If the slope is negative, the system/ball returns. The equilibrium is stable (@fig-linear).
+- If the slope is positive, the system/ball moves away. The equilibrium is unstable (@fig-linear).
+- The steeper the slope, the faster the ball moves.
+
+```{r}
+#| label: fig-linear
+#| fig-cap: "Linearization of the logistic model (r = 0.5, K = 20). (A) The velocity curve (solid) and its straight-line approximations at each equilibrium (dashed). The slope is negative at K (stable) and positive at 0 (unstable). (B) The same idea in the ball-and-cup diagram. Near each equilibrium, the landscape (solid) is close to a simple bowl or hill shape (dashed)."
+#| fig-width: 9
+#| fig-height: 3.8
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 2, 1))
+
+# (A) velocity curve with tangent lines
+plot(N, f_log(N), type = "l", lwd = 2, las = 1,
+     xlab = "Number of beavers, N", ylab = "Rate of change, dN/dt")
+mtext("A", side = 3, adj = 0, font = 2)
+abline(h = 0, col = "grey50")
+NK <- seq(K - 7, K + 7, by = 0.1); lines(NK, -r * (NK - K), lty = 2, lwd = 2)
+N0 <- seq(0, 7, by = 0.1);        lines(N0,  r * N0,       lty = 2, lwd = 2)
+points(K, 0, pch = 19, cex = 1.6)
+points(0, 0, pch = 21, bg = "white", cex = 1.6, xpd = NA)
+text(K + 5, -0.2, "slope = -r", cex = 0.85)
+text(4.5, 0.2, "slope = r", cex = 0.85)
+
+# (B) landscape with bowl and hill approximations
+par(mar = c(1, 1, 2, 1))
+draw_land(log_land, xlim = c(-0.15, 1.75), ylim = c(-1.3, 1.5))
+mtext("B", side = 3, adj = 0, font = 2)
+nb <- seq(0.6, 1.4, by = 0.01); lines(nb, -1 + 3 * (nb - 1)^2, lty = 2, lwd = 2)
+nh <- seq(-0.15, 0.4, by = 0.01); lines(nh, -3 * nh^2, lty = 2, lwd = 2)
+ball(log_land, 1, r = 0.07)
+ball(log_land, 0, bg = "white", r = 0.07)
+text(c(0, 1), log_land(c(0, 1)) - 0.25, c("0", "K"))
+```
+
+## Logistic growth with Allee effect
+
+**The Allee effect**
+
+The logistic model has only one cup. However, in many species, small populations are easy to decline due to reasons beside stochasity. For example, individuals may have trouble finding mates. This is called **Allee effect**. We can add Allee effect to the logistic model:
+
+$$
+\frac{dN}{dt} = rN\left(\frac{N}{A} - 1\right)\left(1 - \frac{N}{K}\right)
+$$
+
+$A$ is the Allee threshold. Below $A$, the population declines. Above $A$, it grows toward $K$.
+
+**Alternative stable states and basins of attraction**
+
+The velocity curve now crosses zero three times: at $0$, $A$, and $K$ (@fig-allee A). Using the slope rule from the previous section, $0$ and $K$ are stable, and $A$ is unstable. The landscape now has two cups (@fig-allee B). These are the stream state and the pond state from @sec-stability. A system with more than one stable state has **alternative stable states**. The unstable equilibrium at $A$ is the threshold between them.
+
+A population that starts below $A$ ends in the stream state. A population that starts above $A$ ends in the pond state. The range of starting points that end in the same state is the **basin of attraction** of that state. Thus, to lose the pond, we must remove enough beavers to bring the population below $A$.
+
+```{r}
+#| label: fig-allee
+#| fig-cap: "The logistic model with an Allee effect (r = 0.5, A = 8, K = 20). (A) The velocity curve. Arrows show the direction of change. Filled circles are stable equilibria; the open circle is unstable. (B) The landscape calculated from the model. It has two cups, the stream state at 0 and the pond state at K, separated by a threshold at A."
+#| fig-width: 9
+#| fig-height: 3.8
+f_allee <- function(N, A) r * N * (N / A - 1) * (1 - N / K)
+F_allee <- function(N, A) r * (N^3 / (3 * A) - N^4 / (4 * A * K) - N^2 / 2 + N^3 / (3 * K))
+
+# landscape for a given A, drawn with x = N/10 and scaled to fit the panel
+make_land <- function(A, Nmin = -2, Nmax = 23) {
+  Ng <- seq(Nmin, Nmax, length.out = 400); Vg <- -F_allee(Ng, A)
+  lo <- min(Vg); hi <- max(Vg)
+  function(x) (-F_allee(10 * x, A) - lo) / (hi - lo) * 2.2 - 1
+}
+A <- 8
+allee_land <- make_land(A)
+N2 <- seq(0, 23, by = 0.1)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 2, 1))
+
+# (A) velocity curve and phase line
+plot(N2, f_allee(N2, A), type = "l", lwd = 2, las = 1,
+     xlab = "Number of beavers, N", ylab = "Rate of change, dN/dt")
+mtext("A", side = 3, adj = 0, font = 2)
+abline(h = 0, col = "grey50")
+arrows(6.5, 0, 1.5, 0, length = 0.1, lwd = 2)
+arrows(10, 0, 18, 0, length = 0.1, lwd = 2)
+arrows(23, 0, 21, 0, length = 0.1, lwd = 2)
+points(c(0, K), c(0, 0), pch = 19, cex = 1.6, xpd = NA)
+points(A, 0, pch = 21, bg = "white", cex = 1.6)
+text(c(A, K), 0, c("A", "K"), pos = 3, offset = 0.8)
+
+# (B) landscape
+par(mar = c(1, 1, 2, 1))
+draw_land(allee_land, xlim = c(-0.2, 2.3), ylim = c(-1.2, 1.5))
+mtext("B", side = 3, adj = 0, font = 2)
+ball(allee_land, 0, r = 0.07)
+ball(allee_land, K / 10, r = 0.07)
+ball(allee_land, A / 10, bg = "white", r = 0.07)
+text(c(0, A / 10, K / 10), allee_land(c(0, A / 10, K / 10)) + c(-0.25, 0.3, -0.25),
+     c("Stream", "Threshold", "Pond"), cex = 0.85)
+```
+
+**What happens when the conditions change: bifurcation**
+
+Now suppose conditions change so that small groups of beavers find it harder to survive. In the model, the Allee threshold $A$ increases.
+
+As $A$ increases, the threshold moves toward the pond state (@fig-bif-panels). The basin of the pond state becomes narrower, so a smaller loss of beavers can push the system into the stream state. When $A$ reaches $K$, the threshold and the pond state meet. The pond cup disappears, and every population below $K$ declines to the stream state.
+
+A change in the number or stability of equilibria as conditions change is called a **bifurcation**. This is the regime shift from @fig-scenarios D, now calculated from the model. If $A$ later decreases, the stream state stays stable. Thus, the beavers do not return on their own. This is the hysteresis from @fig-hysteresis.
+
+```{r}
+#| label: fig-bif-panels
+#| fig-cap: "A bifurcation in the Allee model as the Allee threshold A increases (r = 0.5, K = 20). Top row: velocity curves. Bottom row: the corresponding landscapes. Filled circles are stable equilibria; open circles are not stable. (A, D) A = 8: two stable states with a wide pond basin. (B, E) A = 14: the threshold is closer to the pond state, and the pond basin is narrower. (C, F) A = 20: the threshold and the pond state meet, the pond cup disappears, and only the stream state remains."
+#| fig-width: 10
+#| fig-height: 6.5
+As <- c(8, 14, 20)
+
+par(mfrow = c(2, 3), mar = c(4.5, 4.5, 2, 1))
+for (i in 1:3) {
+  plot(N2, f_allee(N2, As[i]), type = "l", lwd = 2, las = 1, ylim = c(-3.5, 2),
+       xlab = "Number of beavers, N", ylab = "dN/dt")
+  mtext(paste0(LETTERS[i], ". A = ", As[i]), side = 3, adj = 0, font = 2)
+  abline(h = 0, col = "grey50")
+  points(0, 0, pch = 19, cex = 1.6, xpd = NA)
+  if (As[i] < K) {
+    points(K, 0, pch = 19, cex = 1.6)
+    points(As[i], 0, pch = 21, bg = "white", cex = 1.6)
+  } else {
+    points(K, 0, pch = 21, bg = "white", cex = 1.6)
+  }
+}
+par(mar = c(1, 1, 2, 1))
+for (i in 1:3) {
+  land <- make_land(As[i])
+  draw_land(land, xlim = c(-0.2, 2.3), ylim = c(-1.2, 1.5))
+  mtext(LETTERS[i + 3], side = 3, adj = 0, font = 2)
+  ball(land, 0, r = 0.07)
+  if (As[i] < K) {
+    ball(land, K / 10, r = 0.07)
+    ball(land, As[i] / 10, bg = "white", r = 0.07)
+  } else {
+    ball(land, K / 10, bg = "white", r = 0.07)
+  }
+}
+```
+
+\[add a bifurcation plot\]
+
+# Stability Analysis in 2D and 3D: ecosystem engineers {#sec-engineers}
+
+In @sec-1D, we analyze beaver population alone, without considering its effect on the environment. Beavers are **ecosystem engineers**: organisms that modify their physical environment, and in doing so, change the resources available to other species (Jones et al. 1994). To capture this feedback, a model needs two variables: the number of beavers and the amount of habitat.
+
+## Two dimensions: beavers and their habitat
+
+The state of the system now has two parts: the number of beavers, $N$, and the amount of habitat, $E$. Thus, the system no longer moves along a line like in @fig-velocity. It moves on a plane, called the **phase plane** (@fig-2d-time A). At each point, the ball has two rates of change, $dN/dt$ and $dE/dt$. Together, they give the direction and speed of the ball. The grey arrows in @fig-engineerB show this direction at many points.
+
+::: {.callout-note collapse="true" title="Beaver-habitat model"}
+$$
+\begin{aligned}
+\frac{dN}{dt} &= N\left(\frac{a_1E}{h + E} - a_0 - bN\right) \\
+\frac{dE}{dt} &= nN - dE
+\end{aligned}
+$$
+
+$a_1$ is the maximum growth rate, $h$ sets how much habitat beavers need, $a_0$ is the death rate without habitat, and $b$ is self-limitation. $n$ is the rate at which each beaver builds habitat, and $d$ is the rate at which habitat decays.
+:::
+
+```{r}
+#| label: fig-2d-time
+#| fig-cap: "The beaver–habitat model, starting with 1 beaver and no habitat. (A) Number of beavers (solid) and amount of habitat (dashed) over time. Both level off at about 6.7, the pond state. (B) The same run on the phase plane (red curve). Grey arrows show the direction of change. The solid line is where dN/dt = 0; the dashed line is where dE/dt = 0. Equilibria are where the lines cross: the stream state and the pond state (filled circles), and a saddle (open circle)."
+#| fig-width: 9
+#| fig-height: 4.2
+eng_rates <- function(N, E, a = 0.5, r = 1, h = 1, m = 0.2, c = 0.1, d = 0.5) {
+  list(dN = N * (r * E / (h + E) - m - c * N),
+       dE = a * N - d * E)
+}
+run2 <- function(N0, E0 = 0, a = 0.5, Tmax = 40, dt = 0.01) {
+  steps <- Tmax / dt
+  out <- matrix(NA, steps + 1, 3); out[1, ] <- c(0, N0, E0)
+  N <- N0; E <- E0
+  for (i in 1:steps) {
+    v <- eng_rates(N, E, a)
+    N <- N + dt * v$dN; E <- E + dt * v$dE
+    out[i + 1, ] <- c(i * dt, N, E)
+  }
+  out
+}
+run <- run2(1)
+
+# phase plane with arrows and nullclines
+draw_pp <- function(a = 0.5, title = "", lim = 8) {
+  plot(NA, xlim = c(0, lim), ylim = c(0, lim), las = 1,
+       xlab = "Number of beavers, N", ylab = "Amount of habitat, E")
+  mtext(title, side = 3, adj = 0, font = 2)
+  ag <- seq(0.4, lim - 0.4, length.out = 11)
+  ar <- expand.grid(N = ag, E = ag)
+  v  <- eng_rates(ar$N, ar$E, a)
+  len <- sqrt(v$dN^2 + v$dE^2)
+  arrows(ar$N, ar$E, ar$N + 0.35 * v$dN / len, ar$E + 0.35 * v$dE / len,
+         length = 0.03, col = "grey70")
+  Ec <- seq(0, lim, length.out = 400)
+  lines((Ec / (1 + Ec) - 0.2) / 0.1, Ec, lwd = 2.5)   # dN/dt = 0
+  abline(a = 0, b = a / 0.5, lwd = 2.5, lty = 2)      # dE/dt = 0
+}
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 2, 1))
+
+# (A) beavers and habitat over time
+plot(run[, 1], run[, 2], type = "l", lwd = 2, ylim = c(0, 8), las = 1,
+     xlab = "Time", ylab = "Amount")
+mtext("A", side = 3, adj = 0, font = 2)
+lines(run[, 1], run[, 3], lwd = 2, lty = 2)
+legend("bottomright", c("Beavers, N", "Habitat, E"), lwd = 2, lty = c(1, 2), bty = "n")
+
+# (B) phase plane with the run
+draw_pp(title = "B")
+lines(run[, 2], run[, 3], lwd = 2, col = ball_col)
+points(c(0, 6.70), c(0, 6.70), pch = 19, cex = 1.6, xpd = NA)
+points(0.30, 0.30, pch = 21, bg = "white", cex = 1.6, xpd = NA)
+```
+
+@fig-2d-surface shows the same system as a ball-and-cup diagram. The ball now rolls on a surface instead of a line. The two valleys are the two stable equilibria in @fig-2d-time B: the stream state and the pond state. The low pass between them is the third equilibrium, called a saddle. The red curve is the run from @fig-2d-time B. It is the path of the ball as it rolls from its starting point into the pond valley. You can rotate the surface with your mouse. In two dimensions, this surface is a helpful picture, but it is only approximate.
+
+```{r}
+#| label: fig-2d-surface
+#| fig-cap: "An illustrative ball-and-cup surface for the beaver–habitat model. The two valleys are the stream state (0 beavers, 0 habitat) and the pond state (about 6.7 beavers and 6.7 habitat), separated by a saddle. The red curve is the run from @fig-2d-time B. Drag to rotate; scroll to zoom."
+library(plotly)
+
+# valley profile along the diagonal: minima at 0 and 6.7, saddle between them
+V1   <- function(s) 0.05 * (s^4 / 4 - 9.2 * s^3 / 3 + 16.75 * s^2 / 2)
+surf <- function(x, y) V1((x + y) / 2) + 0.05 * ((x - y) / 2)^2
+xs <- ys <- seq(0, 8, length.out = 50)
+zs <- outer(xs, ys, surf)
+
+bx <- c(0, 6.7)
+path_z <- surf(run[, 2], run[, 3]) + 0.05
+
+plot_ly() %>%
+  add_surface(x = xs, y = ys, z = t(zs), showscale = FALSE, opacity = 0.9,
+              colorscale = list(c(0, "rgb(190,190,190)"), c(1, "rgb(250,250,250)"))) %>%
+  add_paths(x = run[, 2], y = run[, 3], z = path_z,
+            line = list(color = ball_col, width = 5), showlegend = FALSE,
+            hoverinfo = "none") %>%
+  add_markers(x = bx, y = bx, z = surf(bx, bx) + 0.15,
+              text = c("Stream state", "Pond state"), hoverinfo = "text",
+              marker = list(size = 7, color = "black"), showlegend = FALSE) %>%
+  layout(scene = list(
+    xaxis = list(title = "Beavers, N"),
+    yaxis = list(title = "Habitat, E"),
+    zaxis = list(title = "", showticklabels = FALSE),
+    camera = list(eye = list(x = 1.6, y = -1.6, z = 0.9))
+  ))
+```
+
+**Where are the equilibria?**
+
+As in one dimension, an equilibrium is a state where the system stops changing. In two dimensions, both rates must be zero.
+
+A **nullcline** is a curve where one rate is zero. In @fig-2d-time B, the solid line is where the beaver population stops changing, $dN/dt = 0$. The dashed line is where habitat stops changing, $dE/dt = 0$. The vertical axis is also a nullcline for beavers. With no beavers, the population cannot change.
+
+An equilibrium lies where a beaver nullcline crosses a habitat nullcline. The amount of equilibria in this system changes as parameters of the system change. We are able to calculate the exact number by solving the intersection of nullclines. 
+
+In the scenario above (@fig-2d-time), there are three equilibria: 
+- **The stream state**, with no beavers and no habitat. Here, the dashed line meets the vertical axis.
+- **The pond state** Here, the dashed line crosses the solid line.
+- **A third equilibrium** at a small number of beavers, where the two lines cross again.
+
+In @fig-2d-surface, the stream state and the pond state are the bottoms of the two valleys. The third equilibrium is the low pass between them.
+
+**Are the equilibria stable?**
+
+In one dimension, the slope at an equilibrium told us whether a nudged system returns, and how fast. In two dimensions, we need to know how each rate changes when we nudge each variable. This forms a table called the **Jacobian matrix**, the two-dimensional version of the slope. At the pond state, its signs are:
+
+|                   | Nudge beavers ($N$) | Nudge habitat ($E$) |
+|-------------------|:-------------------:|:-------------------:|
+| Change in $dN/dt$ |          −          |         \+          |
+| Change in $dE/dt$ |         \+          |          −          |
+
+The negative diagonal signs mean that beavers limit their own growth and habitat decays. The positive off-diagonal signs mean that habitat helps beavers, and beavers build habitat. This is the engineering feedback.
+
+However, the table alone does not tell us whether a nudge shrinks. The two variables affect each other. A nudge to beavers changes habitat, which then changes beavers again. **Eigenvalues** untangle these effects. They pick out two directions in which a nudge simply shrinks or grows at a fixed rate. Each eigenvalue is one of these rates, and it works like the slope in one dimension.
+
+$det(J)=ad-bc=\lambda_1*\lambda_2 $
+$tr(J)=a+d=\lambda_1+\lambda_2$
+
+- **Both eigenvalues negative:** every nudge shrinks. The equilibrium is stable. This is true for the stream state and the pond state, the two valleys in @fig-2d-surface.
+- **Both eigenvalues positive:** every nudge grows. The equilibrium is unstable.
+- **One positive and one negative:** a nudge shrinks in one direction and grows in the other. This is a **saddle**.
+
+::: {.callout-note collapse="true" title="Optional: calculating the eigenvalues"}
+
+Write the model as $dN/dt = F(N, E)$ and $dE/dt = G(N, E)$. The Jacobian contains the partial derivatives of $F$ and $G$, evaluated at an equilibrium:
+
+$$
+J = \begin{pmatrix}
+\dfrac{\partial F}{\partial N} & \dfrac{\partial F}{\partial E} \\[2ex]
+\dfrac{\partial G}{\partial N} & \dfrac{\partial G}{\partial E}
+\end{pmatrix}
+= \begin{pmatrix}
+\dfrac{rE}{h + E} - m - 2cN & \dfrac{rhN}{(h + E)^2} \\[2ex]
+a & -d
+\end{pmatrix}
+$$
+
+The eigenvalues $\lambda$ of a $2 \times 2$ matrix solve
+
+$$
+\lambda^2 - T\lambda + D = 0,
+\qquad
+\lambda = \frac{T \pm \sqrt{T^2 - 4D}}{2},
+$$
+
+where $T$ is the sum of the diagonal entries (the trace) and $D$ is the determinant.
+
+**Example: the pond state** ($N = E \approx 6.70$).
+
+$$
+J \approx \begin{pmatrix} -0.670 & 0.113 \\ 0.5 & -0.5 \end{pmatrix},
+\qquad T \approx -1.170, \qquad D \approx 0.279
+$$
+
+$$
+\lambda = \frac{-1.170 \pm \sqrt{1.369 - 1.114}}{2} \approx -0.33 \text{ and } -0.84
+$$
+
+Both are negative, so the pond state is stable. The same steps give $-0.2$ and $-0.5$ for the stream state (stable), and $0.11$ and $-0.64$ for the saddle.
+
+If $T^2 - 4D < 0$, the eigenvalues have an imaginary part, and the system spirals as it returns. Both eigenvalues have negative real parts when $T < 0$ and $D > 0$.
+:::
+
+**What happens when engineering changes?**
+
+Now suppose each beaver builds habitat more slowly, for example because there are fewer trees nearby.In @fig-2d-engineer, the dashed nullcline becomes flatter. As it flattens, the pond state and the saddle move toward each other. When the building rate is low enough, they meet and disappear. Only the stream state remains. This is a bifurcation, as in @sec-1D Thus, beavers can maintain a pond only when they build habitat fast enough.
+
+```{r}
+#| label: fig-2d-engineer
+#| fig-cap: "Phase planes for the beaver–habitat model with (A) strong engineering and (B) weak engineering. Grey arrows show the direction of change. The solid line is where the beaver population stops changing; the dashed line is where habitat stops changing. Equilibria are where the lines cross. Filled circles are stable; the open circle is a saddle. Starting points in the shaded region end in the pond state; all others end in the stream state."
+#| fig-width: 10
+#| fig-height: 4.5
+eng_rates <- function(N, E, a, r = 1, h = 1, m = 0.2, c = 0.1, d = 0.5) {
+  list(dN = N * (r * E / (h + E) - m - c * N),
+       dE = a * N - d * E)
+}
+
+draw_engineer <- function(a, title, lim = 10) {
+  # shade the basin of the pond state
+  g <- seq(0, lim, length.out = 60)
+  start <- expand.grid(N = g, E = g)
+  N <- start$N; E <- start$E
+  for (i in 1:6000) {
+    v <- eng_rates(N, E, a)
+    N <- N + 0.05 * v$dN; E <- E + 0.05 * v$dE
+  }
+  pond <- matrix(N > 1, length(g), length(g))
+  image(g, g, pond * 1, zlim = c(0, 1), col = c("white", "grey88"), las = 1,
+        xlab = "Number of beavers, N", ylab = "Amount of habitat, E")
+  mtext(title, side = 3, adj = 0, font = 2)
+  # direction arrows
+  ag <- seq(0.5, lim - 0.5, length.out = 10)
+  ar <- expand.grid(N = ag, E = ag)
+  v <- eng_rates(ar$N, ar$E, a)
+  len <- sqrt(v$dN^2 + v$dE^2)
+  arrows(ar$N, ar$E, ar$N + 0.4 * v$dN / len, ar$E + 0.4 * v$dE / len,
+         length = 0.04, col = "grey55")
+  # nullclines
+  Es <- seq(0, lim, length.out = 400)
+  lines((Es / (1 + Es) - 0.2) / 0.1, Es, lwd = 2.5)        # dN/dt = 0
+  abline(a = 0, b = a / 0.5, lwd = 2.5, lty = 2)            # dE/dt = 0
+  box()
+}
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 2, 1))
+
+draw_engineer(a = 0.5, title = "A. Strong engineering")
+points(c(0, 6.70), c(0, 6.70), pch = 19, cex = 1.6, xpd = NA)
+points(0.30, 0.30, pch = 21, bg = "white", cex = 1.6, xpd = NA)
+text(c(0.9, 6.70), c(-0.1, 7.4), c("Stream", "Pond"), cex = 0.85, xpd = NA)
+
+draw_engineer(a = 0.05, title = "B. Weak engineering")
+points(0, 0, pch = 19, cex = 1.6, xpd = NA)
+```
+
+@fig-2d-bif-diagram summarizes this change for every engineering rate. It shows the number of beavers at each equilibrium. Reading from right to left, the engineering rate decreases. The pond state and the saddle move toward each other, meet, and disappear. The system then drops to the stream state.
+
+```{r}
+#| label: fig-2d-bif-diagram
+#| fig-cap: "Bifurcation diagram for the beaver–habitat model. Solid lines are stable equilibria (the stream state and the pond state); the dashed line is the saddle. "
+#| fig-width: 6.5
+#| fig-height: 4.5
+r_ <- 1; h_ <- 1; m_ <- 0.2; c_ <- 0.1; d_ <- 0.5
+ag <- seq(0.01, 0.6, by = 0.001)
+b  <- ag / d_
+B  <- r_ * b - m_ * b - c_ * h_            # linear coefficient
+disc <- B^2 - 4 * c_ * b * m_ * h_
+ok <- disc >= 0 & B > 0
+pond_N   <- (B[ok] + sqrt(disc[ok])) / (2 * c_ * b[ok])
+saddle_N <- (B[ok] - sqrt(disc[ok])) / (2 * c_ * b[ok])
+a_star <- min(ag[ok]); N_star <- saddle_N[1]
+
+par(mar = c(4.5, 4.5, 1, 1))
+plot(NA, xlim = c(0, 0.6), ylim = c(-0.5, 9), las = 1,
+     xlab = "Building rate, a", ylab = "Number of beavers at equilibrium")
+abline(v = c(0.1, 0.5), lty = 3, col = "grey60")
+lines(c(0, 0.6), c(0, 0), lwd = 3)
+lines(ag[ok], pond_N, lwd = 3)
+lines(ag[ok], saddle_N, lwd = 2, lty = 2)
+text(c(0.5, 0.45, 0.5), c(7.4, 1.0, -0.4), c("Pond", "Saddle", "Stream"), cex = 0.85)
+```
+
+## Three dimensions: adding another species
+
+Ecosystem engineers can also affect other species. Suppose a fish species lives in the stream and needs flowing water. When beavers create a pond, this species loses habitat. \[Example to check: a stream fish that declines in beaver ponds.\] The model now has three variables: beavers, habitat, and fish.
+
+We can no longer draw the ball's movement on a page. However, the steps of stability analysis are the same. We find the equilibria, build the Jacobian, and calculate its eigenvalues to find out stability and bifurcation. With three variables, the Jacobian is a $3 \times 3$ table, and each equilibrium has three eigenvalues. The equilibrium is stable if all three are negative.
+
+At the pond state, the signs of the Jacobian are:
+
+|                          | Nudge beavers | Nudge habitat | Nudge fish |
+|--------------------------|:-------------:|:-------------:|:----------:|
+| Change in beaver growth  |       −       |      \+       |     0      |
+| Change in habitat growth |      \+       |       −       |     0      |
+| Change in fish growth    |       0       |       −       |     −      |
+
+The fish row shows that habitat reduces fish growth. The fish column is zero except for its own entry, so the fish do not affect the beavers or the habitat. Thus, the fate of the fish follows the fate of the beavers.
+
+@fig-3d shows two outcomes. If too few beavers arrive, the system stays in the stream state, and the fish persist (A). If enough beavers arrive, the system moves to the pond state, and the fish decline (B). Thus, the regime shift in the engineer causes a regime shift in the community.
+
+```{r}
+#| label: fig-3d
+#| fig-cap: "The beaver–habitat–fish model over time. (A) A small group of beavers (0.2) arrives at a stream with no habitat. The beavers die out, habitat stays low, and the fish persist. (B) A larger group (1) arrives. The beavers establish a pond, and the fish decline."
+#| fig-width: 10
+#| fig-height: 4
+sim3 <- function(N0, E0 = 0, S0 = 10, a = 0.5, s = 0.5, KS = 10, b = 0.4,
+                 Tmax = 60, dt = 0.01) {
+  steps <- Tmax / dt; keep <- seq(1, steps + 1, by = 10)
+  out <- matrix(NA, steps + 1, 4); out[1, ] <- c(0, N0, E0, S0)
+  N <- N0; E <- E0; S <- S0
+  for (i in 1:steps) {
+    v  <- eng_rates(N, E, a)
+    dS <- s * S * (1 - S / (KS * exp(-b * E)))   # fish carrying capacity falls with habitat
+    N <- N + dt * v$dN; E <- E + dt * v$dE; S <- S + dt * dS
+    out[i + 1, ] <- c(i * dt, N, E, S)
+  }
+  out[keep, ]
+}
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 2, 1))
+for (p in list(list(N0 = 0.2, lab = "A. Few beavers arrive"),
+               list(N0 = 1,   lab = "B. More beavers arrive"))) {
+  o <- sim3(p$N0)
+  plot(NA, xlim = c(0, 60), ylim = c(0, 11), las = 1,
+       xlab = "Time", ylab = "Amount")
+  mtext(p$lab, side = 3, adj = 0, font = 2)
+  lines(o[, 1], o[, 2], lwd = 2)
+  lines(o[, 1], o[, 3], lwd = 2, lty = 2)
+  lines(o[, 1], o[, 4], lwd = 2, col = ball_col)
+  legend("right", c("Beavers", "Habitat", "Fish"), lwd = 2,
+         lty = c(1, 2, 1), col = c("black", "black", ball_col), bty = "n")
+}
+```
+
+::: {.callout-note collapse="true" title="Optional: the fish equation"}
+$$
+\frac{dS}{dt} = sS\left(1 - \frac{S}{K_S\,e^{-bE}}\right)
+$$
+
+The fish grow logistically, but their carrying capacity falls as habitat increases.
+:::
+
+# References {.unnumbered}
+
+- Baker, B.W., Ducharme, H.C., Mitchell, D.C.S., Stanley, T.R. & Peinetti, H.R. (2005). Interaction of beaver and elk herbivory reduces standing crop of willow. *Ecological Applications*, 15, 110–118.
+- Cheung, M.W.M., Nozawa, Y. & Miki, T. (2021). Ecosystem engineering structures facilitate ecological resilience: a coral reef model. *Ecological Research*.
+- Courchamp, F., Clutton-Brock, T. & Grenfell, B. (1999). Inverse density dependence and the Allee effect. *Trends in Ecology & Evolution*, 14, 405–410.
+- Cuddington, K. (2011). Legacy effects: the persistent impact of ecological interactions. *Biological Theory*, 6, 203–210.
+- Cuddington, K., Wilson, W.G. & Hastings, A. (2009). Ecosystem engineers: feedback and population dynamics. *The American Naturalist*, 173, 488–498.
+- Gonzalez, A., Lambert, A. & Ricciardi, A. (2008). When does ecosystem engineering cause invasion and species replacement? *Oikos*, 117, 1247–1257.
+- Gurney, W.S.C. & Lawton, J.H. (1996). The population dynamics of ecosystem engineers. *Oikos*, 76, 273–283.
+- Hastings, A., Byers, J.E., Crooks, J.A., Cuddington, K., Jones, C.G., Lambrinos, J.G., Talley, T.S. & Wilson, W.G. (2007). Ecosystem engineering in space and time. *Ecology Letters*, 10, 153–164.
+- Holling, C.S. (1973). Resilience and stability of ecological systems. *Annual Review of Ecology and Systematics*, 4, 1–23.
+- Jones, C.G., Lawton, J.H. & Shachak, M. (1994). Organisms as ecosystem engineers. *Oikos*, 69, 373–386.
+- Pimm, S.L. (1984). The complexity and stability of ecosystems. *Nature*, 307, 321–326.
+- Wright, J.P., Gurney, W.S.C. & Jones, C.G. (2004). Patch dynamics in a landscape modified by ecosystem engineers. *Oikos*, 105, 336–348.
